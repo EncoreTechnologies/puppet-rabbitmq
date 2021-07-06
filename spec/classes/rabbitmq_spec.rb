@@ -77,7 +77,7 @@ describe 'rabbitmq' do
       context 'with no pin', if: facts[:os]['family'] == 'Debian' do
         let(:params) { { repos_ensure: true, package_apt_pin: '' } }
 
-        if Puppet.version =~ %r{^6} # https://tickets.puppetlabs.com/browse/PUP-9112 and https://tickets.puppetlabs.com/browse/PUP-9180
+        if Puppet.version =~ %r{^[6,7]} # https://tickets.puppetlabs.com/browse/PUP-9112 and https://tickets.puppetlabs.com/browse/PUP-9180
           let(:expected_key_apt_source_key_content) { 'nil' }
         else
           let(:expected_key_apt_source_key_content) { ':undef' }
@@ -97,7 +97,7 @@ describe 'rabbitmq' do
       context 'with pin', if: facts[:os]['family'] == 'Debian' do
         let(:params) { { repos_ensure: true, package_apt_pin: '700' } }
 
-        if Puppet.version =~ %r{^6} # https://tickets.puppetlabs.com/browse/PUP-9112 and https://tickets.puppetlabs.com/browse/PUP-9180
+        if Puppet.version =~ %r{^[6,7]} # https://tickets.puppetlabs.com/browse/PUP-9112 and https://tickets.puppetlabs.com/browse/PUP-9180
           let(:expected_key_apt_source_key_content) { 'nil' }
         else
           let(:expected_key_apt_source_key_content) { ':undef' }
@@ -163,6 +163,40 @@ describe 'rabbitmq' do
       [-42, '-42', 'foo'].each do |value|
         context "with file_limit => '#{value}'" do
           let(:params) { { file_limit: value } }
+
+          it 'does not compile' do
+            expect { catalogue }.to raise_error(Puppet::PreformattedError, %r{Error while evaluating a Resource Statement})
+          end
+        end
+      end
+
+      [-1000, 0, 1000].each do |value|
+        context "with oom_score_adj => '#{value}'" do
+          let(:params) { { oom_score_adj: value } }
+
+          if facts[:os]['family'] == 'Debian'
+            it { is_expected.to contain_file('/etc/default/rabbitmq-server').with_content(/^echo #{value} > \/proc\/\$\$\/oom_score_adj$/) }
+          else
+            it { is_expected.not_to contain_file('/etc/default/rabbitmq-server') }
+          end
+
+          if facts[:systemd]
+            selinux_ignore_defaults = facts[:os]['family'] == 'RedHat'
+
+            it do
+              is_expected.to contain_systemd__service_limits("#{name}.service").
+                with_limits('OOMScoreAdjust' => value).
+                with_restart_service(false)
+            end
+          else
+            it { is_expected.not_to contain_systemd__service_limits("#{name}.service") }
+          end
+        end
+      end
+
+      [-2000, 2000, '500', 'foo'].each do |value|
+        context "with oom_score_adj => '#{value}'" do
+          let(:params) { { oom_score_adj: value } }
 
           it 'does not compile' do
             expect { catalogue }.to raise_error(Puppet::PreformattedError, %r{Error while evaluating a Resource Statement})

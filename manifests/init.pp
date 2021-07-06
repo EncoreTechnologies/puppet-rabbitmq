@@ -72,6 +72,10 @@
 #
 # @example Use RabbitMQ clustering facilities
 #   class { 'rabbitmq':
+#     cluster                  => {
+#       'name'      => 'test_cluster',
+#       'init_node' => 'hostname'
+#     },
 #     config_cluster           => true,
 #     cluster_nodes            => ['rabbit1', 'rabbit2'],
 #     cluster_node_type        => 'ram',
@@ -92,6 +96,7 @@
 #   An array specifying authorization/authentication backend to use. Single quotes should be placed around array entries,
 #   ex. `['{foo, baz}', 'baz']` Defaults to [rabbit_auth_backend_internal], and if using LDAP defaults to [rabbit_auth_backend_internal,
 #   rabbit_auth_backend_ldap].
+# @param cluster Join cluster and change name of cluster.
 # @param cluster_node_type
 #   Choose between disc and ram nodes.
 # @param cluster_nodes
@@ -140,6 +145,8 @@
 #   to 'False' and set 'erlang_cookie'.
 # @param file_limit
 #   Set rabbitmq file ulimit. Defaults to 16384. Only available on systems with `$::osfamily == 'Debian'` or `$::osfamily == 'RedHat'`.
+# @param oom_score_adj
+#   Set rabbitmq-server process OOM score. Defaults to 0.
 # @param heartbeat
 #   Set the heartbeat timeout interval, default is unset which uses the builtin server defaults of 60 seconds. Setting this
 # @param inetrc_config
@@ -311,6 +318,7 @@ class rabbitmq (
   Boolean $admin_enable                                                                            = true,
   Boolean $management_enable                                                                       = false,
   Boolean $use_config_file_for_plugins                                                             = false,
+  Hash $cluster                                                                                    = $rabbitmq::cluster,
   Enum['ram', 'disc'] $cluster_node_type                                                           = 'disc',
   Array $cluster_nodes                                                                             = [],
   String $config                                                                                   = 'rabbitmq/rabbitmq.config.erb',
@@ -394,6 +402,7 @@ class rabbitmq (
   Boolean $wipe_db_on_cookie_change                                                                = false,
   String $cluster_partition_handling                                                               = 'ignore',
   Variant[Integer[-1],Enum['unlimited'],Pattern[/^(infinity|\d+(:(infinity|\d+))?)$/]] $file_limit = 16384,
+  Integer[-1000, 1000] $oom_score_adj                                                              = 0,
   Hash $environment_variables                                                                      = { 'LC_ALL' => 'en_US.UTF-8' },
   Hash $config_variables                                                                           = {},
   Hash $config_kernel_variables                                                                    = {},
@@ -522,6 +531,15 @@ class rabbitmq (
     Class['rabbitmq::install::rabbitmqadmin'] -> Rabbitmq_exchange<| |>
   }
 
+  if $config_cluster and $cluster['name'] and $cluster['init_node'] {
+    create_resources('rabbitmq_cluster', {
+        $cluster['name'] => {
+          'init_node'      => $cluster['init_node'],
+          'node_disc_type' => $cluster_node_type,
+        }
+    })
+  }
+
   if ($service_restart) {
     Class['rabbitmq::config'] ~> Class['rabbitmq::service']
   }
@@ -532,5 +550,5 @@ class rabbitmq (
   -> Class['rabbitmq::management']
 
   # Make sure the various providers have their requirements in place.
-  Class['rabbitmq::install'] -> Rabbitmq_plugin<| |>
+  Class['rabbitmq::install'] -> Rabbitmq_plugin<| |> -> Rabbitmq_cluster<| |>
 }
