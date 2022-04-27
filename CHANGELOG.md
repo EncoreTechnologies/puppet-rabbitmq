@@ -4,10 +4,6 @@ All notable changes to this project will be documented in this file.
 Each new release typically also includes the latest modulesync defaults.
 These should not affect the functionality of the module.
 
-**Fixed bugs:**
-
-- Fixed RedHat repo to conform the the new packagecloud repo requirements (https://github.com/voxpupuli/puppet-rabbitmq/pull/907)
-
 ## [v12.0.0](https://github.com/voxpupuli/puppet-rabbitmq/tree/v12.0.0) (2022-03-28)
 
 [Full Changelog](https://github.com/voxpupuli/puppet-rabbitmq/compare/v11.1.0...v12.0.0)
