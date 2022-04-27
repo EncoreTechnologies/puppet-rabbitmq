@@ -6,18 +6,19 @@ class rabbitmq::repo::rhel (
   String $key_source = $rabbitmq::package_gpg_key,
 ) {
   yumrepo { 'rabbitmq':
-    ensure   => present,
-    name     => 'rabbitmq_rabbitmq-server',
-    baseurl  => $location,
-    gpgkey   => $key_source,
-    enabled  => 1,
-    gpgcheck => 1,
+    ensure        => present,
+    name          => 'rabbitmq_rabbitmq-server',
+    baseurl       => $location,
+    gpgkey        => $key_source,
+    enabled       => 1,
+    gpgcheck      => 0,
+    repo_gpgcheck => 1,
   }
 
   # This may still be needed to prevent warnings
-  # packagecloud key is gpg-pubkey-d59097ab-52d46e88
+  # packagecloud key is gpg-pubkey-4d206f89-5bbb8d59
   exec { "rpm --import ${key_source}":
     path   => ['/bin','/usr/bin','/sbin','/usr/sbin'],
-    unless => 'rpm -q gpg-pubkey-6026dfca-573adfde 2>/dev/null',
+    unless => 'rpm -q gpg-pubkey-4d206f89-5bbb8d59 2>/dev/null',
   }
 }
