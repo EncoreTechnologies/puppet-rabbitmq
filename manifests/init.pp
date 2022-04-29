@@ -354,7 +354,7 @@ class rabbitmq (
   Optional[String] $node_ip_address                                                                = undef,
   Optional[Variant[Numeric, String]] $package_apt_pin                                              = undef,
   String $package_ensure                                                                           = 'installed',
-  Optional[String] $package_gpg_key                                                                = 'https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc',
+  Optional[String] $package_gpg_key                                                                = undef,
   Variant[String, Array] $package_name                                                             = 'rabbitmq',
   Optional[String] $package_source                                                                 = undef,
   Optional[String] $package_provider                                                               = undef,
