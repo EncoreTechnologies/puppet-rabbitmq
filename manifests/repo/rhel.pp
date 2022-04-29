@@ -11,7 +11,7 @@ class rabbitmq::repo::rhel (
     baseurl       => $location,
     gpgkey        => $key_source,
     enabled       => 1,
-    gpgcheck      => 0,
+    gpgcheck      => 1,
     repo_gpgcheck => 1,
   }
 
