@@ -1,7 +1,7 @@
 {
   "name": "puppet-rabbitmq",
-  "version": "12.0.1-rc0",
-  "author": "voxpupuli",
+  "version": "15.0.1-rc0",
+  "author": "Vox Pupuli",
   "summary": "Installs, configures, and manages RabbitMQ.",
   "license": "Apache-2.0",
   "source": "https://github.com/voxpupuli/puppet-rabbitmq",
@@ -11,26 +11,27 @@
     {
       "operatingsystem": "RedHat",
       "operatingsystemrelease": [
-        "7"
+        "9"
       ]
     },
     {
       "operatingsystem": "CentOS",
       "operatingsystemrelease": [
-        "7"
+        "9"
       ]
     },
     {
       "operatingsystem": "Debian",
       "operatingsystemrelease": [
-        "9"
+        "11",
+        "12"
       ]
     },
     {
       "operatingsystem": "Ubuntu",
       "operatingsystemrelease": [
-        "16.04",
-        "18.04"
+        "20.04",
+        "22.04"
       ]
     },
     {
@@ -40,33 +41,35 @@
       ]
     },
     {
-      "operatingsystem": "FreeBSD"
+      "operatingsystem": "FreeBSD",
+      "operatingsystemrelease": [
+        "13",
+        "14",
+        "15"
+      ]
     },
     {
       "operatingsystem": "OpenBSD"
-    },
-    {
-      "operatingsystem": "Archlinux"
     }
   ],
   "requirements": [
     {
-      "name": "puppet",
-      "version_requirement": ">= 6.1.0 < 8.0.0"
+      "name": "openvox",
+      "version_requirement": ">= 8.19.0 < 9.0.0"
     }
   ],
   "dependencies": [
     {
       "name": "puppetlabs/stdlib",
-      "version_requirement": ">= 4.13.1 < 9.0.0"
+      "version_requirement": ">= 9.0.0 < 10.0.0"
     },
     {
       "name": "puppet/archive",
-      "version_requirement": ">= 2.0.0 < 7.0.0"
+      "version_requirement": ">= 2.0.0 < 9.0.0"
     },
     {
       "name": "puppet/systemd",
-      "version_requirement": ">= 2.10.0 < 4.0.0"
+      "version_requirement": ">= 6.0.0 < 10.0.0"
     }
   ],
   "tags": [

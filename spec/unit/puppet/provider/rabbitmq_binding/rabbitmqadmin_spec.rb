@@ -9,19 +9,19 @@ describe provider_class do
       name: 'source@target@/',
       destination_type: :queue,
       routing_key: 'blablub',
-      arguments: {}
+      arguments: {},
     )
   end
   let(:provider) { provider_class.new(resource) }
 
   describe '#instances' do
     it 'returns instances' do
-      provider_class.expects(:rabbitmqctl_list).with('vhosts').returns <<~EOT
+      expect(provider_class).to receive(:rabbitmqctl_list).with('vhosts').and_return(<<~EOT)
         /
       EOT
-      provider_class.expects(:rabbitmqctl_list).with(
+      expect(provider_class).to receive(:rabbitmqctl_list).with(
         'bindings', '-p', '/', 'source_name', 'destination_name', 'destination_kind', 'routing_key', 'arguments'
-      ).returns <<~EOT
+      ).and_return(<<~EOT)
         exchange\tdst_queue\tqueue\t*\t[]
       EOT
       instances = provider_class.instances
@@ -31,25 +31,25 @@ describe provider_class do
           source: prov.get(:source),
           destination: prov.get(:destination),
           vhost: prov.get(:vhost),
-          routing_key: prov.get(:routing_key)
+          routing_key: prov.get(:routing_key),
         }
       end).to eq([
                    {
                      source: 'exchange',
                      destination: 'dst_queue',
                      vhost: '/',
-                     routing_key: '*'
-                   }
+                     routing_key: '*',
+                   },
                  ])
     end
 
     it 'returns multiple instances' do
-      provider_class.expects(:rabbitmqctl_list).with('vhosts').returns <<~EOT
+      expect(provider_class).to receive(:rabbitmqctl_list).with('vhosts').and_return(<<~EOT)
         /
       EOT
-      provider_class.expects(:rabbitmqctl_list).with(
+      expect(provider_class).to receive(:rabbitmqctl_list).with(
         'bindings', '-p', '/', 'source_name', 'destination_name', 'destination_kind', 'routing_key', 'arguments'
-      ).returns <<~EOT
+      ).and_return(<<~EOT)
         exchange\tdst_queue\tqueue\trouting_one\t[]
         exchange\tdst_queue\tqueue\trouting_two\t[]
       EOT
@@ -60,21 +60,59 @@ describe provider_class do
           source: prov.get(:source),
           destination: prov.get(:destination),
           vhost: prov.get(:vhost),
-          routing_key: prov.get(:routing_key)
+          routing_key: prov.get(:routing_key),
         }
       end).to eq([
                    {
                      source: 'exchange',
                      destination: 'dst_queue',
                      vhost: '/',
-                     routing_key: 'routing_one'
+                     routing_key: 'routing_one',
                    },
                    {
                      source: 'exchange',
                      destination: 'dst_queue',
                      vhost: '/',
-                     routing_key: 'routing_two'
-                   }
+                     routing_key: 'routing_two',
+                   },
+                 ])
+    end
+
+    it 'returns multiple instances (with or without arguments)' do
+      expect(provider_class).to receive(:rabbitmqctl_list).with('vhosts').and_return(<<~EOT)
+        /
+      EOT
+      expect(provider_class).to receive(:rabbitmqctl_list).with(
+        'bindings', '-p', '/', 'source_name', 'destination_name', 'destination_kind', 'routing_key', 'arguments'
+      ).and_return(<<~EOT)
+        exchange\tdst_queue\tqueue\trouting_one\t[]
+        exchange\tdst_queue\tqueue\trouting_two\t[{"header","value"},{"x-match","all"}]
+      EOT
+      instances = provider_class.instances
+      expect(instances.size).to eq(2)
+      expect(instances.map do |prov|
+        {
+          source: prov.get(:source),
+          destination: prov.get(:destination),
+          vhost: prov.get(:vhost),
+          routing_key: prov.get(:routing_key),
+          arguments: prov.get(:arguments),
+        }
+      end).to eq([
+                   {
+                     source: 'exchange',
+                     destination: 'dst_queue',
+                     vhost: '/',
+                     routing_key: 'routing_one',
+                     arguments: {},
+                   },
+                   {
+                     source: 'exchange',
+                     destination: 'dst_queue',
+                     vhost: '/',
+                     routing_key: 'routing_two',
+                     arguments: { 'header' => 'value', 'x-match' => 'all' },
+                   },
                  ])
     end
   end
@@ -87,17 +125,17 @@ describe provider_class do
         destination: 'destqueue',
         destination_type: :queue,
         routing_key: 'blablubd',
-        arguments: {}
+        arguments: {},
       )
     end
 
     it 'exists' do
-      provider_class.expects(:rabbitmqctl_list).with('vhosts').returns <<~EOT
+      expect(provider_class).to receive(:rabbitmqctl_list).with('vhosts').and_return(<<~EOT)
         /
       EOT
-      provider_class.expects(:rabbitmqctl_list).with(
+      expect(provider_class).to receive(:rabbitmqctl_list).with(
         'bindings', '-p', '/', 'source_name', 'destination_name', 'destination_kind', 'routing_key', 'arguments'
-      ).returns <<~EOT
+      ).and_return(<<~EOT)
         exchange\tdst_queue\tqueue\t*\t[]
       EOT
 
@@ -106,12 +144,12 @@ describe provider_class do
 
     it 'matches' do
       # Test resource to match against
-      provider_class.expects(:rabbitmqctl_list).with('vhosts').returns <<~EOT
+      expect(provider_class).to receive(:rabbitmqctl_list).with('vhosts').and_return(<<~EOT)
         /
       EOT
-      provider_class.expects(:rabbitmqctl_list).with(
+      expect(provider_class).to receive(:rabbitmqctl_list).with(
         'bindings', '-p', '/', 'source_name', 'destination_name', 'destination_kind', 'routing_key', 'arguments'
-      ).returns <<~EOT
+      ).and_return(<<~EOT)
         exchange\tdst_queue\tqueue\t*\t[]
       EOT
 
@@ -121,7 +159,7 @@ describe provider_class do
 
   describe '#create' do
     it 'calls rabbitmqadmin to create' do
-      provider.expects(:rabbitmqadmin).with(
+      expect(provider).to receive(:rabbitmqadmin).with(
         'declare', 'binding', '--vhost=/', '--user=guest', '--password=guest', '-c', '/etc/rabbitmq/rabbitmqadmin.conf',
         'source=source', 'destination=target', 'arguments={}', 'routing_key=blablub', 'destination_type=queue'
       )
@@ -136,13 +174,13 @@ describe provider_class do
           routing_key: 'blablubd',
           arguments: {},
           user: 'colin',
-          password: 'secret'
+          password: 'secret',
         )
       end
       let(:provider) { provider_class.new(resource) }
 
       it 'calls rabbitmqadmin to create' do
-        provider.expects(:rabbitmqadmin).with(
+        expect(provider).to receive(:rabbitmqadmin).with(
           'declare', 'binding', '--vhost=/', '--user=colin', '--password=secret', '-c', '/etc/rabbitmq/rabbitmqadmin.conf',
           'source=source', 'destination=test2', 'arguments={}', 'routing_key=blablubd', 'destination_type=queue'
         )
@@ -158,13 +196,13 @@ describe provider_class do
           destination: 'destqueue',
           destination_type: :queue,
           routing_key: 'blablubd',
-          arguments: {}
+          arguments: {},
         )
       end
       let(:provider) { provider_class.new(resource) }
 
       it 'calls rabbitmqadmin to create' do
-        provider.expects(:rabbitmqadmin).with(
+        expect(provider).to receive(:rabbitmqadmin).with(
           'declare', 'binding', '--vhost=/', '--user=guest', '--password=guest', '-c', '/etc/rabbitmq/rabbitmqadmin.conf',
           'source=exchange1', 'destination=destqueue', 'arguments={}', 'routing_key=blablubd', 'destination_type=queue'
         )
@@ -175,7 +213,7 @@ describe provider_class do
 
   describe '#destroy' do
     it 'calls rabbitmqadmin to destroy' do
-      provider.expects(:rabbitmqadmin).with(
+      expect(provider).to receive(:rabbitmqadmin).with(
         'delete', 'binding', '--vhost=/', '--user=guest', '--password=guest', '-c', '/etc/rabbitmq/rabbitmqadmin.conf',
         'source=source', 'destination_type=queue', 'destination=target', 'properties_key=blablub'
       )

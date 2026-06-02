@@ -1,30 +1,125 @@
 # frozen_string_literal: true
 
 require File.expand_path(File.join(File.dirname(__FILE__), '..', 'rabbitmq_cli'))
-Puppet::Type.type(:rabbitmq_vhost).provide(:rabbitmqctl, parent: Puppet::Provider::RabbitmqCli) do
+Puppet::Type.type(:rabbitmq_vhost).provide(
+  :rabbitmqctl,
+  parent: Puppet::Provider::RabbitmqCli,
+) do
+  desc 'Rabbitmqctl provider for rabbitmq vhost'
   confine feature: :posix
 
-  def self.instances
-    vhost_list = run_with_retries do
-      rabbitmqctl_list('vhosts')
+  def initialize(value = {})
+    super
+    @property_flush = {}
+  end
+
+  def self.prefetch(resources)
+    instances.each do |prov|
+      if (resource = resources[prov.name])
+        resource.provider = prov
+      end
     end
+  end
 
+  # To maintain compatibility with older versions of RabbitMQ,
+  # we only deal with vhost metadata >= version 3.11.0
+  def self.supports_metadata?
+    Puppet::Util::Package.versioncmp(rabbitmq_version, '3.11') >= 0
+  rescue Puppet::MissingCommand
+    # See comment on the definition of rabbitmqctl_list in rabbitmqctl_cli.rb;
+    # the same rationale applies here.
+    Puppet.debug('supports_metadata?: rabbitmqctl command not found; assuming rabbitmq is not installed')
+    false
+  end
+
+  def supports_metadata?
+    self.class.supports_metadata?
+  end
+
+  def self.vhost_list
+    run_with_retries do
+      if supports_metadata?
+        rabbitmqctl_list('vhosts', 'name,description,default_queue_type,tags', '-s')
+      else
+        rabbitmqctl_list('vhosts')
+      end
+    end
+  end
+
+  def self.instances
     vhost_list.split(%r{\n}).map do |line|
-      raise Puppet::Error, "Cannot parse invalid vhost line: #{line}" unless line =~ %r{^(\S+)$}
+      if supports_metadata?
+        raise Puppet::Error, "Cannot parse invalid vhost line: #{line}" unless
+          (matches = line.match(%r{^(\S+)\t+(.*?)\t+(undefined|quorum|classic|stream)?\t+\[(.*?)\]$}i))
 
-      new(name: Regexp.last_match(1))
+        name, description, default_queue_type, tags = matches.captures
+        # RMQ returns 'undefined' as default_queue_type if it has never been set
+        default_queue_type = nil if default_queue_type == 'undefined'
+        new(ensure: :present, name: name, description: description, default_queue_type: default_queue_type, tags: tags.split(%r{,\s*}))
+      else
+        raise Puppet::Error, "Cannot parse invalid vhost line: #{line}" unless line =~ %r{^(\S+)$}
+
+        new(ensure: :present, name: Regexp.last_match(1))
+      end
     end
   end
 
   def create
-    rabbitmqctl('add_vhost', resource[:name])
+    rabbitmqctl('add_vhost', *params)
+    @property_hash[:ensure] = :present
+  end
+
+  def params
+    params = [resource[:name]]
+    if supports_metadata?
+      params << ['--description', resource[:description]] if resource[:description]
+      params << ['--default-queue-type', resource[:default_queue_type]] if resource[:default_queue_type] && resource[:default_queue_type] != 'undefined'
+      params << ['--tags', resource[:tags].join(',')] if resource[:tags]
+    end
+    params
+  end
+
+  def description
+    @property_hash[:description]
+  end
+
+  def tags
+    @property_hash[:tags]
+  end
+
+  def default_queue_type
+    @property_hash[:default_queue_type]
+  end
+
+  def tags=(tags)
+    @property_flush[:tags] = tags
+  end
+
+  def description=(value)
+    @property_flush[:description] = value
+  end
+
+  def default_queue_type=(value)
+    @property_flush[:default_queue_type] = value
+  end
+
+  def flush
+    return if @property_flush.empty? || !supports_metadata?
+
+    params = [resource[:name]]
+    params << ['--description', @property_flush[:description]] if @property_flush[:description]
+    params << ['--default-queue-type', @property_flush[:default_queue_type]] if @property_flush[:default_queue_type]
+    params << ['--tags', @property_flush[:tags].join(',')] if @property_flush[:tags]
+    rabbitmqctl('update_vhost_metadata', *params)
+    @property_flush.clear
   end
 
   def destroy
     rabbitmqctl('delete_vhost', resource[:name])
+    @property_hash[:ensure] = :absent
   end
 
   def exists?
-    run_with_retries { rabbitmqctl_list('vhosts') }.split(%r{\n}).include? resource[:name]
+    @property_hash[:ensure] == :present
   end
 end

@@ -5,12 +5,13 @@ require 'puppet/util/package'
 
 require File.expand_path(File.join(File.dirname(__FILE__), '..', 'rabbitmq_cli'))
 Puppet::Type.type(:rabbitmq_parameter).provide(:rabbitmqctl, parent: Puppet::Provider::RabbitmqCli) do
+  desc 'Rabbitmqctl provider for rabbitmq parameter'
   confine feature: :posix
 
   mk_resource_methods
 
   def initialize(value = {})
-    super(value)
+    super
     @property_flush = {}
   end
 
@@ -32,7 +33,7 @@ Puppet::Type.type(:rabbitmq_parameter).provide(:rabbitmqctl, parent: Puppet::Pro
           ensure: :present,
           component_name: Regexp.last_match(1),
           name: format('%s@%s', Regexp.last_match(2), vhost),
-          value: JSON.parse(Regexp.last_match(3))
+          value: JSON.parse(Regexp.last_match(3)),
         }
         resources << new(parameter)
       end
@@ -69,7 +70,7 @@ Puppet::Type.type(:rabbitmq_parameter).provide(:rabbitmqctl, parent: Puppet::Pro
     key = resource[:name].rpartition('@').first
 
     if @property_flush[:ensure] == :absent
-      rabbitmqctl('clear_parameter', '-p', vhost, resource[:component_name], key)
+      rabbitmqctl('clear_parameter', '-p', vhost, resource[:component_name] || component_name, key)
     else
       rabbitmqctl('set_parameter', '-p', vhost, resource[:component_name], key, resource[:value].to_json)
     end

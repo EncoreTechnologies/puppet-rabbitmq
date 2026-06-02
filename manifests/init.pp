@@ -22,6 +22,17 @@
 #     package_gpg_key => 'http://www.some_site.some_domain/some_key.pub.key',
 #   }
 #
+# @example Offline installation from local mirror:
+#   class { 'rabbitmq':
+#     key_content     => template('openstack/rabbit.pub.key'),
+#     repo_gpg_key => '/tmp/rabbit.pub.key',
+#   }
+#
+# @example Use external package key source for any (apt/rpm) package provider:
+#   class { 'rabbitmq':
+#     repo_gpg_key => 'http://www.some_site.some_domain/some_key.pub.key',
+#   }
+#
 # @example To use RabbitMQ Environment Variables, use the parameters `environment_variables` e.g.:
 #   class { 'rabbitmq':
 #     port                  => '5672',
@@ -51,6 +62,20 @@
 #   class { 'rabbitmq':
 #     config_variables => {
 #       'log'          => "[{file, [{level,debug}]},{categories, [{queue, [{level,info},{file,'queue.log'}]}]}]"
+#     }
+#   }
+#
+# @example Change RabbitMQ service startup timeout via SystemD to 20 minutes (1200 seconds) :
+#   class { 'rabbitmq':
+#     systemd_additional_service_parameters => {
+#       'TimeoutStartSec' => 1200,
+#     }
+#   }
+# @example Change multiple RabbitMQ service startup parameters via SystemD:
+#   class { 'rabbitmq':
+#     systemd_additional_service_parameters => {
+#       'TimeoutStartSec' => 1200,
+#       'TimeoutStopSec'  => 1200,
 #     }
 #   }
 #
@@ -98,13 +123,15 @@
 #
 # @param admin_enable
 #   If enabled sets up the management interface/plugin for RabbitMQ.
-#   This also install the rabbitmqadmin command line tool.
+#   This will also install the rabbitmqadmin command line tool.
 # @param management_enable
 #   If enabled sets up the management interface/plugin for RabbitMQ.
 #   NOTE: This does not install the rabbitmqadmin command line tool.
 # @param use_config_file_for_plugins
 #   If enabled the /etc/rabbitmq/enabled_plugins config file is created,
 #   replacing the use of the rabbitmqplugins provider to enable plugins.
+# @param plugins
+#   Additional list of plugins to start, or to add to /etc/rabbitmq/enabled_plugins, if use_config_file_for_plugins is enabled.
 # @param auth_backends
 #   An array specifying authorization/authentication backend to use. Single quotes should be placed around array entries,
 #   ex. `['{foo, baz}', 'baz']` Defaults to [rabbit_auth_backend_internal], and if using LDAP defaults to [rabbit_auth_backend_internal,
@@ -119,15 +146,25 @@
 # @param collect_statistics_interval
 #   Set the collect_statistics_interval in rabbitmq.config
 # @param config
-#   The file to use as the rabbitmq.config template.
+#   The file to use as the rabbitmq.conf template.
+# @param advanced_config
+#   The file to use as the advanced.config template.
 # @param config_additional_variables
-#   Additional config variables in rabbitmq.config
+#   Additional config variables in advanced.config
 # @param config_cluster
 #   Enable or disable clustering support.
+# @param config_cowboy_opts
+#   Hash of additional configs (key / value) for `cowboy_opts` in advanced.config.
 # @param config_kernel_variables
 #   Hash of Erlang kernel configuration variables to set (see [Variables Configurable in rabbitmq.config](#variables-configurable-in-rabbitmq.config)).
 # @param config_path
-#   The path to write the RabbitMQ configuration file to.
+#   The path to write the RabbitMQ configuration (in sysctl format) file to.
+# @param advanced_config_path
+#   The path to write the RabbitMQ advanced configuration (in Erlang format) file to.
+# @param purge_legacy_config_files
+#   Purge old config file (Erlang format).
+# @param legacy_config_path
+#   Path of the legacy config file.
 # @param config_ranch
 #   When true, suppress config directives needed for older (<3.6) RabbitMQ versions.
 # @param config_management_variables
@@ -146,6 +183,9 @@
 #   Password to set for the `default_user` in rabbitmq.config.
 # @param delete_guest_user
 #   Controls whether default guest user is deleted.
+# @param enable_centos_release
+#   Enable the `centos-release-rabbitmq-38` if set to `true` and if the OS is in the
+#   RedHat family and `repos_ensure` is `false`. Defaults to true on CentOS.
 # @param env_config
 #   The template file to use for rabbitmq_env.config.
 # @param env_config_path
@@ -157,7 +197,10 @@
 #   set explicitly if using clustering. If you run Pacemaker and you don't want to use RabbitMQ buildin cluster, you can set config_cluster
 #   to 'False' and set 'erlang_cookie'.
 # @param file_limit
-#   Set rabbitmq file ulimit. Defaults to 16384. Only available on systems with `$::osfamily == 'Debian'` or `$::osfamily == 'RedHat'`.
+#   Set rabbitmq file ulimit. Defaults to 16384. Only available on Linux
+# @param systemd_additional_service_parameters
+#   Hash of additional systemd service parameters which are appended to the dropin file. No validation is done, this is passed verbotem to the systemd dropin module.
+#   Defaults to {}. Only available on Linux
 # @param oom_score_adj
 #   Set rabbitmq-server process OOM score. Defaults to 0.
 # @param heartbeat
@@ -211,6 +254,12 @@
 #   Determines the ensure state of the package.  Set to installed by default, but could be changed to latest.
 # @param package_gpg_key
 #   RPM package GPG key to import. Uses source method. Should be a URL for Debian/RedHat OS family, or a file name for
+#   RedHat OS family. Set to https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc
+#   for Debian/RedHat OS Family by default.
+# @param package_source
+# @param package_provider
+# @param repo_gpg_key
+#   RPM package GPG key to import. Uses source method. Should be a URL for Debian/RedHat OS family, or a file name for
 #   RedHat OS family. Set to https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey for Debian/RedHat OS Family by
 #   default. Note, that `key_content`, if specified, would override this parameter for Debian OS family.
 # @param package_name
@@ -219,11 +268,33 @@
 #   The RabbitMQ port.
 # @param python_package
 #   Name of the package required by rabbitmqadmin.
+# @param quorum_cluster_size
+#   Sets the default quorum queue cluster size.
+#   More info can be found here: https://www.rabbitmq.com/docs/quorum-queues
+# @param quorum_membership_reconciliation_enabled
+#   Enables or disables continuous membership reconciliation.
+#   This REQUIRES RabbitMQ 3.13 or higher to be set to true. More information on this configuration
+#   can be found here: https://www.rabbitmq.com/docs/quorum-queues
+# @param quorum_membership_reconciliation_auto_remove
+#   Enables or disables automatic removal of member nodes that are no longer part of the cluster,
+#   but still a member of the quorum queue.
+#   Important Note: This only takes affect if quorum_membership_reconciliation_enabled is set to true.
+# @param quorum_membership_reconciliation_interval
+#   The default evaluation interval in milliseconds.
+#   Important Note: This only takes affect if quorum_membership_reconciliation_enabled is set to true.
+# @param quorum_membership_reconciliation_trigger_interval
+#   The reconciliation delay in milliseconds, used when a trigger event occurs,
+#   for example, a node is added or removed from the cluster or an applicable policy changes.
+#   This delay will be applied only once, then the regular interval will be used again.
+#   Important Note: This only takes affect if quorum_membership_reconciliation_enabled is set to true.
+# @param quorum_membership_reconciliation_target_group_size
+#   Controls the target group size for a quorum queue
+#   Important Note: This only takes affect if quorum_membership_reconciliation_enabled is set to true.
 # @param repos_ensure
 #   Ensure that a repo with the official (and newer) RabbitMQ package is configured, along with its signing key.
-#   Defaults to false (use system packages). This does not ensure that soft dependencies (like EPEL on RHEL systems) are present.
-#   It also does not solve the erlang dependency.  See https://www.rabbitmq.com/which-erlang.html for a good breakdown of the
-#   different ways of handling the erlang deps.  See also https://github.com/voxpupuli/puppet-rabbitmq/issues/788
+#   Defaults to false (use system packages). This does not ensure that soft dependencies are present.
+#   It also does not solve the erlang dependency. See https://www.rabbitmq.com/which-erlang.html for a good breakdown of the
+#   different ways of handling the erlang deps. See also https://github.com/voxpupuli/puppet-rabbitmq/issues/788
 # @param service_ensure
 #   The state of the service.
 # @param service_manage
@@ -240,6 +311,8 @@
 #   Cert to use for SSL.
 # @param ssl_cert_password
 #   Password used when generating CSR.
+# @param ssl_client_renegotiation
+#   Allow ssl client renegotiation
 # @param ssl_depth
 #   SSL verification depth.
 # @param ssl_dhfile
@@ -263,6 +336,7 @@
 #   SSL management cert. If unset set to ssl_cert for backwards compatibility.
 # @param ssl_management_key
 #   SSL management key. If unset set to ssl_key for backwards compatibility.
+# @param ssl_management_fail_if_no_peer_cert
 # @param ssl_port
 #   SSL port for RabbitMQ
 # @param ssl_reuse_sessions
@@ -330,12 +404,18 @@ class rabbitmq (
   Boolean $admin_enable                                                                            = true,
   Boolean $management_enable                                                                       = false,
   Boolean $use_config_file_for_plugins                                                             = false,
-  Hash $cluster                                                                                    = $rabbitmq::cluster,
+  Array $plugins                                                                                   = [],
+  Hash $cluster                                                                                    = {},
   Enum['ram', 'disc'] $cluster_node_type                                                           = 'disc',
   Array $cluster_nodes                                                                             = [],
-  String $config                                                                                   = 'rabbitmq/rabbitmq.config.erb',
+  String $config                                                                                   = 'rabbitmq/rabbitmq_3.conf.epp',
+  String $advanced_config                                                                          = 'rabbitmq/advanced_3.config.epp',
+  Hash $config_cowboy_opts                                                                         = {},
   Boolean $config_cluster                                                                          = false,
-  Stdlib::Absolutepath $config_path                                                                = '/etc/rabbitmq/rabbitmq.config',
+  Stdlib::Absolutepath $config_path                                                                = '/etc/rabbitmq/rabbitmq.conf',
+  Stdlib::Absolutepath $advanced_config_path                                                       = '/etc/rabbitmq/advanced.config',
+  Boolean $purge_legacy_config_files                                                               = false,
+  Stdlib::Absolutepath $legacy_config_path                                                         = '/etc/rabbitmq/rabbitmq.config',
   Boolean $config_ranch                                                                            = true,
   Boolean $config_stomp                                                                            = false,
   Boolean $config_shovel                                                                           = false,
@@ -343,7 +423,8 @@ class rabbitmq (
   String $default_user                                                                             = 'guest',
   String $default_pass                                                                             = 'guest',
   Boolean $delete_guest_user                                                                       = false,
-  String $env_config                                                                               = 'rabbitmq/rabbitmq-env.conf.erb',
+  Boolean $enable_centos_release                                                                   = false,
+  String $env_config                                                                               = 'rabbitmq/rabbitmq-env.conf.epp',
   Stdlib::Absolutepath $env_config_path                                                            = '/etc/rabbitmq/rabbitmq-env.conf',
   Optional[String] $erlang_cookie                                                                  = undef,
   Optional[String] $interface                                                                      = undef,
@@ -352,9 +433,16 @@ class rabbitmq (
   Boolean $management_ssl                                                                          = true,
   Optional[String] $management_hostname                                                            = undef,
   Optional[String] $node_ip_address                                                                = undef,
-  Optional[Variant[Numeric, String]] $package_apt_pin                                              = undef,
+  Optional[Variant[Numeric, String[1]]] $package_apt_pin                                           = undef,
   String $package_ensure                                                                           = 'installed',
   Optional[String] $package_gpg_key                                                                = undef,
+  Optional[Integer] $quorum_cluster_size                                                           = undef,
+  Optional[Boolean] $quorum_membership_reconciliation_enabled                                      = undef,
+  Optional[Boolean] $quorum_membership_reconciliation_auto_remove                                  = undef,
+  Optional[Integer] $quorum_membership_reconciliation_interval                                     = undef,
+  Optional[Integer] $quorum_membership_reconciliation_trigger_interval                             = undef,
+  Optional[Integer] $quorum_membership_reconciliation_target_group_size                            = undef,
+  Optional[String] $repo_gpg_key                                                                   = undef,
   Variant[String, Array] $package_name                                                             = 'rabbitmq',
   Optional[String] $package_source                                                                 = undef,
   Optional[String] $package_provider                                                               = undef,
@@ -392,17 +480,18 @@ class rabbitmq (
   Enum['verify_none','verify_peer'] $ssl_management_verify                                         = 'verify_none',
   Boolean $ssl_management_fail_if_no_peer_cert                                                     = false,
   Optional[Array] $ssl_versions                                                                    = undef,
+  Optional[Boolean] $ssl_client_renegotiation                                                      = undef,
   Boolean $ssl_secure_renegotiate                                                                  = true,
   Boolean $ssl_reuse_sessions                                                                      = true,
   Boolean $ssl_honor_cipher_order                                                                  = true,
   Optional[Stdlib::Absolutepath] $ssl_dhfile                                                       = undef,
   Array $ssl_ciphers                                                                               = [],
-  Enum['true','false','peer','best_effort'] $ssl_crl_check                                         = 'false',
-  Optional[Stdlib::Absolutepath] $ssl_crl_cache_hash_dir                                                         = undef,
+  Variant[Boolean, Enum['peer','best_effort']] $ssl_crl_check                                      = false,
+  Optional[Stdlib::Absolutepath] $ssl_crl_cache_hash_dir                                           = undef,
   Optional[Integer] $ssl_crl_cache_http_timeout                                                    = undef,
   Boolean $stomp_ensure                                                                            = false,
   Boolean $ldap_auth                                                                               = false,
-  Variant[String[1],Array[String[1]]] $ldap_server                                                 = 'ldap',
+  Array[String[1]] $ldap_server                                                                    = ['ldap'],
   Optional[String] $ldap_user_dn_pattern                                                           = undef,
   String $ldap_other_bind                                                                          = 'anon',
   Boolean $ldap_use_ssl                                                                            = false,
@@ -414,6 +503,7 @@ class rabbitmq (
   Boolean $wipe_db_on_cookie_change                                                                = false,
   String $cluster_partition_handling                                                               = 'ignore',
   Variant[Integer[-1],Enum['unlimited'],Pattern[/^(infinity|\d+(:(infinity|\d+))?)$/]] $file_limit = 16384,
+  Hash $systemd_additional_service_parameters                                                      = {},
   Integer[-1000, 1000] $oom_score_adj                                                              = 0,
   Hash $environment_variables                                                                      = { 'LC_ALL' => 'en_US.UTF-8' },
   Hash $config_variables                                                                           = {},
@@ -446,7 +536,7 @@ class rabbitmq (
     }
   }
 
-  if $ssl_crl_check != 'false' {
+  if $ssl_crl_check != false {
     unless $ssl {
       fail('$ssl_crl_check requires that $ssl => true')
     }
@@ -456,7 +546,7 @@ class rabbitmq (
     unless $ssl {
       fail('$ssl_crl_cache_hash_dir requires that $ssl => true')
     }
-    if $ssl_crl_check == 'false' {
+    if $ssl_crl_check == false {
       fail('$ssl_crl_cache_http_timeout requires that $ssl_crl_check => true|peer|best_effort')
     }
   }
@@ -465,11 +555,13 @@ class rabbitmq (
     unless $ssl {
       fail('$ssl_crl_cache_http_timeout requires that $ssl => true')
     }
-    if $ssl_crl_check == 'false' {
+    if $ssl_crl_check == false {
       fail('$ssl_crl_cache_http_timeout requires that $ssl_crl_check => true|peer|best_effort')
     }
   }
 
+  # when repos_ensure is true, we configure externel repos
+  # CentOS 7 doesn't contain rabbitmq. It's only in EPEL.
   if $repos_ensure {
     case $facts['os']['family'] {
       'RedHat': {
@@ -483,6 +575,10 @@ class rabbitmq (
       default: {
       }
     }
+  } elsif $facts['os']['family'] == 'RedHat' and $enable_centos_release {
+    package { 'centos-release-rabbitmq-38':
+      ensure => 'present',
+    }
   }
 
   contain rabbitmq::install
@@ -492,7 +588,7 @@ class rabbitmq (
 
   unless $use_config_file_for_plugins {
     # NOTE(hjensas): condition on $service_manage to keep current behaviour.
-    # The condition is likely not required because installiton of rabbitmqadmin
+    # The condition is likely not required because installation of rabbitmqadmin
     # is no longer handled here.
     # TODO: Remove the condition on $service_manage
     if ($management_enable or $admin_enable) and $service_manage {
@@ -534,6 +630,14 @@ class rabbitmq (
         }
       }
     }
+    # Start anything else listed on the plugins array, if it was not started already by the other booleans
+    $plugins.each | $plugin | {
+      rabbitmq_plugin { $plugin:
+        ensure   => present,
+        notify   => Class['rabbitmq::service'],
+        provider => 'rabbitmqplugins',
+      }
+    }
   }
 
   if $admin_enable and $service_manage {
@@ -548,10 +652,11 @@ class rabbitmq (
 
   if $config_cluster and $cluster['name'] and $cluster['init_node'] {
     create_resources('rabbitmq_cluster', {
-        $cluster['name'] => {
-          'init_node'      => $cluster['init_node'],
-          'node_disc_type' => $cluster_node_type,
-        }
+      $cluster['name'] => {
+        'init_node'      => $cluster['init_node'],
+        'node_disc_type' => $cluster_node_type,
+        'local_node'     => $cluster['local_node'],
+      }
     })
   }
 

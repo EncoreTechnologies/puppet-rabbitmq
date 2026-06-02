@@ -6,10 +6,6 @@ describe 'rabbitmq policy on a vhost:' do
   context 'create policy resource' do
     it 'runs successfully' do
       pp = <<-EOS
-      if $facts['os']['family'] == 'RedHat' {
-        class { 'erlang': epel_enable => true }
-        Class['erlang'] -> Class['rabbitmq']
-      }
       class { 'rabbitmq':
         service_manage    => true,
         port              => 5672,
@@ -46,7 +42,7 @@ describe 'rabbitmq policy on a vhost:' do
 
       # Apply twice to ensure no changes the second time.
       apply_manifest(pp, catch_failures: true)
-      expect(apply_manifest(pp, catch_changes: true).exit_code).to be_zero
+      apply_manifest(pp, catch_changes: true)
     end
 
     it 'has the policy' do

@@ -7,17 +7,12 @@ describe 'rabbitmq clustering' do
     it 'runs successfully' do
       pp = <<-EOS
       class { 'rabbitmq':
-        cluster                  => { 'name' => 'rabbit_cluster', 'init_node' => $facts['fqdn'] },
+        cluster                  => { 'name' => 'rabbit_cluster', 'init_node' => $facts['networking']['fqdn'] },
         config_cluster           => true,
         cluster_nodes            => ['rabbit1', 'rabbit2'],
         cluster_node_type        => 'ram',
-        environment_variables    => { 'RABBITMQ_USE_LONGNAME' => true },
         erlang_cookie            => 'TESTCOOKIE',
         wipe_db_on_cookie_change => false,
-      }
-      if $facts['os']['family'] == 'RedHat' {
-        class { 'erlang': epel_enable => true}
-        Class['erlang'] -> Class['rabbitmq']
       }
       EOS
 
@@ -33,26 +28,22 @@ describe 'rabbitmq clustering' do
     it 'runs successfully' do
       pp = <<-EOS
       class { 'rabbitmq':
-        cluster                  => { 'name' => 'rabbit_cluster', 'init_node' => $facts['fqdn'] },
+        cluster                  => { 'name' => 'rabbit_cluster', 'init_node' => $facts['networking']['fqdn'] },
         config_cluster           => true,
         cluster_nodes            => ['rabbit1', 'rabbit2'],
         cluster_node_type        => 'ram',
-        environment_variables    => { 'RABBITMQ_USE_LONGNAME' => true },
         erlang_cookie            => 'TESTCOOKIE',
         wipe_db_on_cookie_change => true,
-      }
-      if $facts['os']['family'] == 'RedHat' {
-        class { 'erlang': epel_enable => true}
-        Class['erlang'] -> Class['rabbitmq']
       }
       EOS
 
       apply_manifest(pp, catch_failures: true)
     end
 
-    describe file('/etc/rabbitmq/rabbitmq.config') do
+    describe file('/etc/rabbitmq/rabbitmq.conf') do
       it { is_expected.to be_file }
-      it { is_expected.to contain 'cluster_nodes' }
+      it { is_expected.to contain 'cluster_formation.peer_discovery_backend = classic_config' }
+      it { is_expected.to contain 'cluster_formation.classic_config.nodes' }
       it { is_expected.to contain 'rabbit@rabbit1' }
       it { is_expected.to contain 'rabbit@rabbit2' }
       it { is_expected.to contain 'ram' }
@@ -72,6 +63,27 @@ describe 'rabbitmq clustering' do
           end
         end
       end
+    end
+  end
+
+  context 'rabbitmq::cluster[:local_node] = foobar' do
+    it 'runs successfully' do
+      pp = <<-EOS
+      # Needed to avoid nxdomain error
+      host { 'foobar':
+        ip => '127.0.0.1',
+      }
+      class { 'rabbitmq':
+        cluster                  => { 'name' => 'rabbit_cluster', 'init_node' => 'foobar', 'local_node' => 'foobar' },
+        config_cluster           => true,
+        cluster_nodes            => ['foobar', 'rabbit2'],
+        cluster_node_type        => 'ram',
+        environment_variables    => { 'NODENAME' => 'rabbit@foobar' },
+        erlang_cookie            => 'TESTCOOKIE',
+      }
+      EOS
+
+      apply_manifest(pp, catch_failures: true)
     end
   end
 end

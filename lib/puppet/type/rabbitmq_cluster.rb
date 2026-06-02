@@ -18,6 +18,7 @@ Puppet::Type.newtype(:rabbitmq_cluster) do
   DESC
 
   ensurable do
+    desc 'Whether the resource should be present or absent'
     defaultto(:present)
     newvalue(:present) do
       provider.create
@@ -38,6 +39,11 @@ Puppet::Type.newtype(:rabbitmq_cluster) do
     validate do |value|
       resource.validate_init_node(value)
     end
+  end
+
+  newparam(:local_node) do
+    desc 'Name of the local node'
+    defaultto(:undef)
   end
 
   newparam(:node_disc_type) do

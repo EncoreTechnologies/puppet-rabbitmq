@@ -5,6 +5,7 @@ require 'puppet'
 
 require File.expand_path(File.join(File.dirname(__FILE__), '..', 'rabbitmq_cli'))
 Puppet::Type.type(:rabbitmq_queue).provide(:rabbitmqadmin, parent: Puppet::Provider::RabbitmqCli) do
+  desc 'Rabbitmqadmin provider for rabbitmq queue'
   confine feature: :posix
 
   def should_vhost
@@ -30,7 +31,10 @@ Puppet::Type.type(:rabbitmq_queue).provide(:rabbitmqadmin, parent: Puppet::Provi
         if arguments.nil?
           arguments = '{}'
         else
-          arguments = arguments.gsub(%r{^\[(.*)\]$}, '').gsub(%r{\{("(?:.|\\")*?"),}, '{\1:').gsub(%r{\},\{}, ',')
+          # Substitution : Removes the opening '[' and closing ']' brackets from the arguments string
+          # Substitution 2 : Converts JSON-style "key", format to "key": format by replacing commas after quoted keys with colons
+          # Substitution 3 : Merges multiple object definitions by replacing "},{" with "," to create a single valid JSON object
+          arguments = arguments.gsub(%r{^\[|\]$}, '').gsub(%r{\{("(?:.|\\")*?"),}, '{\1:').gsub(%r{\},\{}, ',')
           arguments = '{}' if arguments == ''
         end
         queue = {
@@ -38,7 +42,7 @@ Puppet::Type.type(:rabbitmq_queue).provide(:rabbitmqadmin, parent: Puppet::Provi
           auto_delete: auto_delete,
           arguments: JSON.parse(arguments),
           ensure: :present,
-          name: format('%s@%s', name, vhost)
+          name: format('%s@%s', name, vhost),
         }
         resources << new(queue) if queue[:name]
       end

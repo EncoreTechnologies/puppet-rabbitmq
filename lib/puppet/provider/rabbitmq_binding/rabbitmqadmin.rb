@@ -6,6 +6,7 @@ require 'digest'
 
 require File.expand_path(File.join(File.dirname(__FILE__), '..', 'rabbitmq_cli'))
 Puppet::Type.type(:rabbitmq_binding).provide(:rabbitmqadmin, parent: Puppet::Provider::RabbitmqCli) do
+  desc 'Rabbitmqadmin provider for rabbitmq binding'
   confine feature: :posix
 
   # Without this, the composite namevar stuff doesn't work properly.
@@ -36,10 +37,13 @@ Puppet::Type.type(:rabbitmq_binding).provide(:rabbitmqadmin, parent: Puppet::Pro
         if arguments.nil?
           arguments = '{}'
         else
-          arguments = arguments.gsub(%r{^\[(.*)\]$}, '').gsub(%r{\{("(?:.|\\")*?"),}, '{\1:').gsub(%r{\},\{}, ',')
+          # Substitution : Removes the opening '[' and closing ']' brackets from the arguments string
+          # Substitution 2 : Converts JSON-style "key", format to "key": format by replacing commas after quoted keys with colons
+          # Substitution 3 : Merges multiple object definitions by replacing "},{" with "," to create a single valid JSON object
+          arguments = arguments.gsub(%r{^\[|\]$}, '').gsub(%r{\{("(?:.|\\")*?"),}, '{\1:').gsub(%r{\},\{}, ',')
           arguments = '{}' if arguments == ''
         end
-        hashed_name = Digest::SHA256.hexdigest format('%s@%s@%s@%s', source_name, destination_name, vhost, routing_key)
+        hashed_name = Digest::SHA256.hexdigest format('%s@%s@%s@%s@%s', source_name, destination_name, vhost, routing_key, arguments)
         next if source_name.empty?
 
         binding = {
@@ -50,7 +54,7 @@ Puppet::Type.type(:rabbitmq_binding).provide(:rabbitmqadmin, parent: Puppet::Pro
           routing_key: routing_key,
           arguments: JSON.parse(arguments),
           ensure: :present,
-          name: hashed_name
+          name: hashed_name,
         }
         resources << new(binding) if binding[:name]
       end
@@ -63,7 +67,7 @@ Puppet::Type.type(:rabbitmq_binding).provide(:rabbitmqadmin, parent: Puppet::Pro
   def self.prefetch(resources)
     bindings = instances
     resources.each do |name, res|
-      if (provider = bindings.find { |binding| binding.source == res[:source] && binding.destination == res[:destination] && binding.vhost == res[:vhost] && binding.routing_key == res[:routing_key] })
+      if (provider = bindings.find { |binding| binding.source == res[:source] && binding.destination == res[:destination] && binding.vhost == res[:vhost] && binding.routing_key == res[:routing_key] && binding.arguments == res[:arguments] })
         resources[name].provider = provider
       end
     end

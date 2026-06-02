@@ -10,8 +10,8 @@ describe Puppet::Type.type(:rabbitmq_parameter) do
         'src-uri' => 'amqp://myremote-server',
         'src-queue' => 'queue.docs.outgoing',
         'dest-uri' => 'amqp://',
-        'dest-queue' => 'queue.docs.incoming'
-      }
+        'dest-queue' => 'queue.docs.incoming',
+      },
     )
   end
 
@@ -44,9 +44,8 @@ describe Puppet::Type.type(:rabbitmq_parameter) do
   end
 
   it 'accepts a valid hash for value' do
-    value = { 'message-ttl' => '1800000' }
-    parameter[:value] = value
-    expect(parameter[:value]).to eq(value)
+    parameter[:value] = { 'message-ttl' => '1800000' }
+    expect(parameter[:value]).to eq({ 'message-ttl' => 1_800_000 })
   end
 
   it 'does not accept an empty string for definition' do
@@ -91,13 +90,13 @@ describe Puppet::Type.type(:rabbitmq_parameter) do
         name: 'documentumShovel@/',
         component_name: 'shovel',
         autoconvert: false,
-        value: { 'myparameter' => '1800000' }
+        value: { 'myparameter' => '1800000' },
       )
     end
 
     it 'does not convert numeric string to integer' do
       expect(parameter[:value]['myparameter']).to eq('1800000')
-      expect(parameter[:value]['myparameter']).to be_kind_of(String)
+      expect(parameter[:value]['myparameter']).to be_a(String)
     end
   end
 end

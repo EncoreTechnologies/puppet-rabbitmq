@@ -5,6 +5,7 @@ require 'puppet/util/package'
 
 require File.expand_path(File.join(File.dirname(__FILE__), '..', 'rabbitmq_cli'))
 Puppet::Type.type(:rabbitmq_policy).provide(:rabbitmqctl, parent: Puppet::Provider::RabbitmqCli) do
+  desc 'Rabbitmqctl provider for rabbitmq policy'
   confine feature: :posix
 
   # cache policies
@@ -21,7 +22,7 @@ Puppet::Type.type(:rabbitmq_policy).provide(:rabbitmqctl, parent: Puppet::Provid
       # / ha-all all .* {"ha-mode":"all","ha-sync-mode":"automatic"} 0 << This is for RabbitMQ v < 3.7.0
       # / ha-all .* all {"ha-mode":"all","ha-sync-mode":"automatic"} 0 << This is for RabbitMQ v >= 3.7.0
       if Puppet::Util::Package.versioncmp(rabbitmq_version, '3.7') >= 0
-        regex = %r{^(\S+)\s+(\S+)\s+(\S+)\s+(all|exchanges|queues)?\s+(\S+)\s+(\d+)$}
+        regex = %r{^(\S+)\s+(\S+)\s+(\S+)\s+(all|exchanges|(?:classic_|quorum_)?queues|streams)?\s+(\S+)\s+(\d+)$}
         applyto_index = 4
         pattern_index = 3
       else
@@ -45,7 +46,7 @@ Puppet::Type.type(:rabbitmq_policy).provide(:rabbitmqctl, parent: Puppet::Provid
           applyto: applyto,
           pattern: pattern,
           definition: definition,
-          priority: priority
+          priority: priority,
         }
       end
     end

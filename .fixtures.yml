@@ -1,10 +1,8 @@
+---
 fixtures:
   repositories:
-    stdlib: 'https://github.com/puppetlabs/puppetlabs-stdlib'
-    apt: 'https://github.com/puppetlabs/puppetlabs-apt'
-    archive: 'https://github.com/voxpupuli/puppet-archive'
-    erlang: 'https://github.com/garethr/garethr-erlang'
-    systemd: 'https://github.com/voxpupuli/puppet-systemd'
-    yumrepo_core:
-      repo: 'https://github.com/puppetlabs/puppetlabs-yumrepo_core'
-      puppet_version: '>= 6.0.0'
+    apt: https://github.com/puppetlabs/puppetlabs-apt
+    archive: https://github.com/voxpupuli/puppet-archive
+    stdlib: https://github.com/puppetlabs/puppetlabs-stdlib
+    systemd: https://github.com/voxpupuli/puppet-systemd
+    yumrepo_core: https://github.com/puppetlabs/puppetlabs-yumrepo_core

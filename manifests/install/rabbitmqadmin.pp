@@ -11,7 +11,7 @@ class rabbitmq::install::rabbitmqadmin {
     $python_package = $rabbitmq::python_package
     # Some systems (e.g., Ubuntu 16.04) don't ship Python 2 by default
     if $rabbitmq::manage_python {
-      ensure_packages([$python_package])
+      stdlib::ensure_packages([$python_package])
       $rabbitmqadmin_require = [Archive['rabbitmqadmin'], Package[$python_package]]
     } else {
       $rabbitmqadmin_require = Archive['rabbitmqadmin']
@@ -27,13 +27,19 @@ class rabbitmq::install::rabbitmqadmin {
 
     $default_user = $rabbitmq::default_user
     $default_pass = $rabbitmq::default_pass
-    $management_ip_address = $rabbitmq::management_ip_address
     $archive_options = $rabbitmq::archive_options
+
+    # This should be consistent with rabbitmq::config
+    if $rabbitmq::management_ip_address {
+      $management_ip_address = $rabbitmq::management_ip_address
+    } else {
+      $management_ip_address = $rabbitmq::node_ip_address
+    }
 
     if !($management_ip_address) {
       # Pull from localhost if we don't have an explicit bind address
       $sanitized_ip = '127.0.0.1'
-    } elsif $management_ip_address =~ Stdlib::Compat::Ipv6 {
+    } elsif $management_ip_address =~ Stdlib::IP::Address::V6::Nosubnet {
       $sanitized_ip = join(enclose_ipv6(any2array($management_ip_address)), ',')
     } else {
       $sanitized_ip = $management_ip_address
@@ -43,13 +49,13 @@ class rabbitmq::install::rabbitmqadmin {
       $rabbitmqadmin_archive_require = [
         Class['rabbitmq::service'],
         Rabbitmq_plugin['rabbitmq_management'],
-        Exec['remove_old_rabbitmqadmin_on_upgrade']
+        Exec['remove_old_rabbitmqadmin_on_upgrade'],
       ]
     } else {
       $rabbitmqadmin_archive_require = [
         Class['rabbitmq::service'],
         File['enabled_plugins'],
-        Exec['remove_old_rabbitmqadmin_on_upgrade']
+        Exec['remove_old_rabbitmqadmin_on_upgrade'],
       ]
     }
 

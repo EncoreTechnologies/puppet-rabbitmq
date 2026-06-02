@@ -15,11 +15,7 @@ describe 'rabbitmq class:' do
   context 'default class inclusion' do
     let(:pp) do
       <<-EOS
-      class { 'rabbitmq': }
-      if $facts['os']['family'] == 'RedHat' {
-        class { 'erlang': epel_enable => true}
-        Class['erlang'] -> Class['rabbitmq']
-      }
+      include rabbitmq
       EOS
     end
 
@@ -54,10 +50,6 @@ describe 'rabbitmq class:' do
         class { 'rabbitmq':
           service_ensure => 'stopped',
         }
-        if $facts['os']['family'] == 'RedHat' {
-          class { 'erlang': epel_enable => true}
-          Class['erlang'] -> Class['rabbitmq']
-        }
       EOS
     end
 
@@ -72,21 +64,13 @@ describe 'rabbitmq class:' do
   context 'service is unmanaged' do
     it 'runs successfully' do
       pp_pre = <<-EOS
-        class { 'rabbitmq': }
-        if $facts['os']['family'] == 'RedHat' {
-          class { 'erlang': epel_enable => true}
-          Class['erlang'] -> Class['rabbitmq']
-        }
+        include rabbitmq
       EOS
 
       pp = <<-EOS
         class { 'rabbitmq':
           service_manage => false,
           service_ensure  => 'stopped',
-        }
-        if $facts['os']['family'] == 'RedHat' {
-          class { 'erlang': epel_enable => true}
-          Class['erlang'] -> Class['rabbitmq']
         }
       EOS
 
@@ -122,14 +106,12 @@ describe 'rabbitmq class:' do
       it { is_expected.to be_listening.on('0.0.0.0').with('tcp') }
     end
 
-    describe port(15_672) do
+    describe port(15_672), :port15672 do
       it { is_expected.to be_listening.on('0.0.0.0').with('tcp') }
     end
 
     describe port(25_672) do
-      xit 'Is on 55672 instead on older rmq versions' do
-        is_expected.to be_listening.on('0.0.0.0').with('tcp')
-      end
+      it { is_expected.to be_listening.on('0.0.0.0').with('tcp') }
     end
   end
 
@@ -162,9 +144,7 @@ describe 'rabbitmq class:' do
     # This listens on all interfaces regardless of these settings
 
     describe port(25_672) do
-      xit 'Is on 55672 instead on older rmq versions' do
-        is_expected.to be_listening.on('0.0.0.0').with('tcp')
-      end
+      it { is_expected.to be_listening.on('0.0.0.0').with('tcp') }
     end
   end
 
@@ -227,9 +207,7 @@ describe 'rabbitmq class:' do
     end
 
     describe port(25_672) do
-      xit 'Is on 55672 instead on older rmq versions' do
-        is_expected.to be_listening.on('0.0.0.0').with('tcp')
-      end
+      it { is_expected.to be_listening.on('0.0.0.0').with('tcp') }
     end
   end
 end
